@@ -1,15 +1,15 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bodyParser = require('body-parser');
+
 const app = express();
 const port = 8001;
 
-// Middleware para parsear application/x-www-form-urlencoded
+// Middleware para parsear application/x-www-form-urlencoded y JSON
 app.use(bodyParser.urlencoded({ extended: false }));
-// Middleware para parsear JSON si lo necesitas
 app.use(bodyParser.json());
 
-// Conexión a SQLite
+// Función para conectarse a la base de datos
 function dbConnection() {
   return new sqlite3.Database('students.sqlite', (err) => {
     if (err) {
@@ -18,7 +18,7 @@ function dbConnection() {
   });
 }
 
-// Ruta para manejar GET y POST /students
+// GET y POST en /students
 app.route('/students')
   .get((req, res) => {
     const db = dbConnection();
@@ -40,9 +40,14 @@ app.route('/students')
     });
   })
   .post((req, res) => {
-    const db = dbConnection();
+    if (!req.body || !req.body.firstname || !req.body.lastname || !req.body.gender || !req.body.age) {
+      return res.status(400).send("Bad Request: Missing student data.");
+    }
+
     const { firstname, lastname, gender, age } = req.body;
+    const db = dbConnection();
     const sql = `INSERT INTO students (firstname, lastname, gender, age) VALUES (?, ?, ?, ?)`;
+
     db.run(sql, [firstname, lastname, gender, age], function(err) {
       if (err) {
         res.status(500).send(err.message);
@@ -53,12 +58,13 @@ app.route('/students')
     });
   });
 
-// Ruta para manejar GET, PUT, DELETE de un estudiante por ID
+// GET, PUT, DELETE en /student/:id
 app.route('/student/:id')
   .get((req, res) => {
     const db = dbConnection();
     const id = req.params.id;
     const sql = `SELECT * FROM students WHERE id = ?`;
+
     db.get(sql, [id], (err, row) => {
       if (err) {
         res.status(500).send(err.message);
@@ -71,9 +77,13 @@ app.route('/student/:id')
     });
   })
   .put((req, res) => {
-    const db = dbConnection();
-    const id = req.params.id;
+    if (!req.body || !req.body.firstname || !req.body.lastname || !req.body.gender || !req.body.age) {
+      return res.status(400).send("Bad Request: Missing student data.");
+    }
+
     const { firstname, lastname, gender, age } = req.body;
+    const id = req.params.id;
+    const db = dbConnection();
     const sql = `UPDATE students SET firstname = ?, lastname = ?, gender = ?, age = ? WHERE id = ?`;
 
     db.run(sql, [firstname, lastname, gender, age, id], function(err) {
@@ -93,13 +103,4 @@ app.route('/student/:id')
     db.run(sql, [id], function(err) {
       if (err) {
         res.status(500).send(err.message);
-      } else {
-        res.send(`The Student with id: ${id} has been deleted.`);
-      }
-      db.close();
-    });
-  });
-
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${port}`);
-});
+      } else
