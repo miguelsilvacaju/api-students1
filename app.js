@@ -1,116 +1,105 @@
-const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const bodyParser = require('body-parser');
+const express = require("express");
+const bodyParser = require("body-parser");
+const sqlite3 = require("sqlite3").verbose();
 
 const app = express();
 const port = 8001;
 
-// Middleware para parsear application/x-www-form-urlencoded y JSON
-app.use(bodyParser.urlencoded({ extended: false }));
+// Middleware para soportar JSON y form-data
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// Función para conectarse a la base de datos
-function dbConnection() {
-  return new sqlite3.Database('students.sqlite', (err) => {
+// Función para conectar a la base de datos
+function db_connection() {
+  const db = new sqlite3.Database("students.sqlite", (err) => {
     if (err) {
-      console.error('Error connecting to the database:', err.message);
+      console.error("Database connection error:", err.message);
     }
   });
+  return db;
 }
 
-// GET y POST en /students
-app.route('/students')
+// Ruta para GET y POST de todos los estudiantes
+app.route("/students")
   .get((req, res) => {
-    const db = dbConnection();
-    const sql = "SELECT * FROM students";
-    db.all(sql, [], (err, rows) => {
+    const conn = db_connection();
+    conn.all("SELECT * FROM students", [], (err, rows) => {
       if (err) {
-        res.status(500).send(err.message);
-      } else {
-        const students = rows.map(row => ({
-          id: row.id,
-          firstname: row.firstname,
-          lastname: row.lastname,
-          gender: row.gender,
-          age: row.age
-        }));
-        res.json(students);
+        res.status(500).send("Database error");
+        return;
       }
-      db.close();
+      const students = rows.map(row => ({
+        id: row.id,
+        firstname: row.firstname,
+        lastname: row.lastname,
+        gender: row.gender,
+        age: row.age
+      }));
+      res.json(students);
     });
   })
   .post((req, res) => {
-    if (!req.body || !req.body.firstname || !req.body.lastname || !req.body.gender || !req.body.age) {
+    const { firstname, lastname, gender, age } = req.body;
+
+    if (!firstname || !lastname || !gender || !age) {
       return res.status(400).send("Bad Request: Missing student data.");
     }
 
-    const { firstname, lastname, gender, age } = req.body;
-    const db = dbConnection();
-    const sql = `INSERT INTO students (firstname, lastname, gender, age) VALUES (?, ?, ?, ?)`;
-
-    db.run(sql, [firstname, lastname, gender, age], function(err) {
+    const conn = db_connection();
+    const sql = "INSERT INTO students (firstname, lastname, gender, age) VALUES (?, ?, ?, ?)";
+    conn.run(sql, [firstname, lastname, gender, age], function (err) {
       if (err) {
-        res.status(500).send(err.message);
-      } else {
-        res.send(`Student with id: ${this.lastID} created successfully`);
+        return res.status(500).send("Error inserting student.");
       }
-      db.close();
+      res.send(`Student with id: ${this.lastID} created successfully`);
     });
   });
 
-// GET, PUT, DELETE en /student/:id
-app.route('/student/:id')
+// Ruta para operaciones sobre un estudiante individual
+app.route("/student/:id")
   .get((req, res) => {
-    const db = dbConnection();
+    const conn = db_connection();
     const id = req.params.id;
-    const sql = `SELECT * FROM students WHERE id = ?`;
-
-    db.get(sql, [id], (err, row) => {
+    conn.get("SELECT * FROM students WHERE id = ?", [id], (err, row) => {
       if (err) {
-        res.status(500).send(err.message);
-      } else if (!row) {
-        res.status(404).send('Student not found');
-      } else {
-        res.json(row);
+        return res.status(500).send("Database error.");
       }
-      db.close();
+      if (!row) {
+        return res.status(404).send("Student not found.");
+      }
+      res.json(row);
     });
   })
   .put((req, res) => {
-    if (!req.body || !req.body.firstname || !req.body.lastname || !req.body.gender || !req.body.age) {
+    const { firstname, lastname, gender, age } = req.body;
+    const id = req.params.id;
+
+    if (!firstname || !lastname || !gender || !age) {
       return res.status(400).send("Bad Request: Missing student data.");
     }
 
-    const { firstname, lastname, gender, age } = req.body;
-    const id = req.params.id;
-    const db = dbConnection();
-    const sql = `UPDATE students SET firstname = ?, lastname = ?, gender = ?, age = ? WHERE id = ?`;
-
-    db.run(sql, [firstname, lastname, gender, age, id], function(err) {
+    const conn = db_connection();
+    const sql = "UPDATE students SET firstname = ?, lastname = ?, gender = ?, age = ? WHERE id = ?";
+    conn.run(sql, [firstname, lastname, gender, age, id], function (err) {
       if (err) {
-        res.status(500).send(err.message);
-      } else {
-        res.json({ id, firstname, lastname, gender, age });
+        return res.status(500).send("Error updating student.");
       }
-      db.close();
+      res.json({ id, firstname, lastname, gender, age });
     });
   })
   .delete((req, res) => {
-    const db = dbConnection();
     const id = req.params.id;
-    const sql = `DELETE FROM students WHERE id = ?`;
-
-    db.run(sql, [id], function(err) {
+    const conn = db_connection();
+    const sql = "DELETE FROM students WHERE id = ?";
+    conn.run(sql, [id], function (err) {
       if (err) {
-        res.status(500).send(err.message);
-      } else {
-        res.send(`The Student with id: ${id} has been deleted.`);
+        return res.status(500).send("Error deleting student.");
       }
-      db.close();
+      res.send(`The Student with id: ${id} has been deleted.`);
     });
   });
 
-// Inicia el servidor
-app.listen(port, '0.0.0.0', () => {
+// Iniciar el servidor
+app.listen(port, "0.0.0.0", () => {
   console.log(`Server running on http://0.0.0.0:${port}`);
 });
