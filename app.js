@@ -103,4 +103,14 @@ app.route('/student/:id')
     db.run(sql, [id], function(err) {
       if (err) {
         res.status(500).send(err.message);
-      } else
+      } else {
+        res.send(`The Student with id: ${id} has been deleted.`);
+      }
+      db.close();
+    });
+  });
+
+// Inicia el servidor
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on http://0.0.0.0:${port}`);
+});
